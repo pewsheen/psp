@@ -6,7 +6,7 @@ Using an MPSC channel for emitting events when screen-locked, unlocked, sleep, w
 ## Support Platform
 - [x] macOS
 - [x] Windows
-- [ ] Unix
+- [ ] Unix (Distros that support DBus / Unity)
 
 ## Events
 
