@@ -20,15 +20,11 @@ pub struct PowerMonitor {}
 
 impl PowerMonitor {
   pub fn new() -> Self {
-    println!("platform - new PowerMonitor");
-
     unsafe {
       let power_monitor_class = get_or_init_power_monitor_class();
       let monitor: id = msg_send![power_monitor_class, alloc];
       let monitor: id = msg_send![monitor, init];
-      let monitor: id = msg_send![monitor, init_monitor];
-
-      dbg!(monitor);
+      let _: id = msg_send![monitor, init_monitor];
 
       Self {}
     }
@@ -42,7 +38,6 @@ impl Default for PowerMonitor {
 }
 
 extern "C" fn init_monitor(this: &Object, _sel: Sel) -> id {
-  println!("init()");
   unsafe {
     let this: id = msg_send![this, init];
     if this != nil {
@@ -109,11 +104,15 @@ extern "C" fn on_resume(_this: &Object, _sel: Sel, _state: *mut c_void) {
 }
 
 extern "C" fn dealloc(this: &Object, _sel: Sel) {
-  println!("dealloc()");
   unsafe {
     let notification_center: &Object =
       msg_send![class!(NSDistributedNotificationCenter), defaultCenter];
     let () = msg_send![notification_center, removeObserver: this];
+
+    let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
+    let ws_notification_center: &Object = msg_send![workspace, notificationCenter];
+    let () = msg_send![ws_notification_center, removeObserver: this];
+
     let () = msg_send![this, dealloc];
   }
 }
@@ -123,7 +122,6 @@ fn get_or_init_power_monitor_class() -> *const Class {
   static INIT_POWER_MONITOR_CLASS: Once = Once::new();
 
   INIT_POWER_MONITOR_CLASS.call_once(|| unsafe {
-    println!("init POWER_MONITOR_CLASS");
     let superclass = class!(NSObject);
     let mut decl = ClassDecl::new("TaoPowerMonitor", superclass).unwrap();
 
