@@ -33,5 +33,8 @@ windows = { version = "0.48", features = [
   "Win32_UI_WindowsAndMessaging",
 ] }
 
+[target."cfg(any(target_os = \"linux\", target_os = \"dragonfly\", target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\"))".dependencies]
+zbus = "3"
+
 [dev-dependencies]
 tao = "0.20.0"

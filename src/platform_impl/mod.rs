@@ -5,4 +5,14 @@ mod monitor;
 #[path = "windows/power_monitor.rs"]
 mod monitor;
 
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+#[path = "linux/power_monitor.rs"]
+mod monitor;
+
 pub use monitor::*;
