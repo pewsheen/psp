@@ -45,7 +45,7 @@ impl PowerMonitor {
 }
 
 impl PowerMonitor {
-  pub fn start_listening(){
+  pub fn start_listening(&self) {
     thread::spawn(move || {
       let runtime = tokio::runtime::Runtime::new().unwrap();
 

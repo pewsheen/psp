@@ -29,16 +29,18 @@ impl PowerEventChannel {
   }
 }
 
-pub struct PowerMonitor {}
+pub struct PowerMonitor {
+  monitor: platform_impl::PowerMonitor,
+}
 
 impl PowerMonitor {
   pub fn new() -> Self {
-    platform_impl::PowerMonitor::new();
-    Self {}
+    let monitor = platform_impl::PowerMonitor::new();
+    Self { monitor }
   }
 
   pub fn start_listening(&self) {
-    platform_impl::PowerMonitor::start_listening();
+    self.monitor.start_listening();
   }
 
   pub fn event_receiver(&self) -> Receiver<PowerState> {

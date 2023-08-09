@@ -16,7 +16,9 @@ struct PowerMonitorClass(*const Class);
 unsafe impl Send for PowerMonitorClass {}
 unsafe impl Sync for PowerMonitorClass {}
 
-pub struct PowerMonitor {}
+pub struct PowerMonitor {
+  monitor: id,
+}
 
 impl PowerMonitor {
   pub fn new() -> Self {
@@ -24,9 +26,14 @@ impl PowerMonitor {
       let power_monitor_class = get_or_init_power_monitor_class();
       let monitor: id = msg_send![power_monitor_class, alloc];
       let monitor: id = msg_send![monitor, init];
-      let _: id = msg_send![monitor, init_monitor];
 
-      Self {}
+      Self { monitor }
+    }
+  }
+
+  pub fn start_listening(&self) {
+    unsafe {
+      let _: id = msg_send![self.monitor, init_monitor];
     }
   }
 }

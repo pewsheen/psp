@@ -26,13 +26,18 @@ pub struct PowerMonitor {
 
 impl PowerMonitor {
   pub fn new() -> Self {
-    println!("platform - new PowerMonitor");
     unsafe {
       let hwnd = create_power_events_listener();
       Self {
         hwnd: hwnd.unwrap(),
       }
     }
+  }
+
+  pub fn start_listening(&self) {
+    RegisterPowerSettingNotification(HANDLE(self.hwnd.0), &GUID_POWERSCHEME_PERSONALITY, 0)
+      .unwrap();
+    WTSRegisterSessionNotification(self.hwnd, NOTIFY_FOR_THIS_SESSION);
   }
 }
 
@@ -75,9 +80,6 @@ unsafe fn create_power_events_listener() -> Result<HWND> {
   );
 
   // TODO: check hwnd
-
-  RegisterPowerSettingNotification(HANDLE(hwnd.0), &GUID_POWERSCHEME_PERSONALITY, 0).unwrap();
-  WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION);
 
   Ok(hwnd)
 }
