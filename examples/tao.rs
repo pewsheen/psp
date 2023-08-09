@@ -13,8 +13,10 @@ fn main() {
     .build(&event_loop)
     .unwrap();
 
-  let monitor = PowerMonitor::new();
-  let power_event_channel = monitor.event_receiver();
+  let power_monitor = PowerMonitor::new();
+  let power_event_channel = power_monitor.event_receiver();
+
+  power_monitor.start_listening();
 
   event_loop.run(move |event, _, control_flow| {
     *control_flow = ControlFlow::Wait;
@@ -33,5 +35,5 @@ fn main() {
     if let Ok(event) = power_event_channel.try_recv() {
       println!("{event:?}");
     }
-  })
+  });
 }

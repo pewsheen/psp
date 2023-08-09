@@ -37,6 +37,10 @@ impl PowerMonitor {
     Self {}
   }
 
+  pub fn start_listening(&self) {
+    platform_impl::PowerMonitor::start_listening();
+  }
+
   pub fn event_receiver(&self) -> Receiver<PowerState> {
     PowerEventChannel::receiver()
   }
