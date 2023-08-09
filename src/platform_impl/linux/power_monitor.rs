@@ -48,38 +48,30 @@ impl PowerMonitor {
   pub fn start_listening(&self) {
     thread::spawn(move || {
       let runtime = tokio::runtime::Runtime::new().unwrap();
-
       runtime.block_on(async {
-        let system_bus = zbus::Connection::system().await.unwrap();
+        let system_bus_result = zbus::Connection::system().await;
+        if system_bus_result.is_err() {
+          println!("D-Bus not available");
+          return;
+        }
+        let system_bus = system_bus_result.unwrap();
         let manager_proxy = ManagerProxy::new(&system_bus).await.unwrap();
-        let mut prepare_for_shutdown = manager_proxy.receive_prepare_for_shutdown().await.unwrap();
-        let mut prepare_for_sleep = manager_proxy.receive_prepare_for_sleep().await.unwrap();
 
-        let session_proxy = SessionProxy::new(&system_bus).await.unwrap();
-        let session_id: String = session_proxy.id().await.unwrap();
-        let session_obj_path: OwnedObjectPath =
-          manager_proxy.get_session(&session_id).await.unwrap();
+        let suspend_monitor_result = get_suspend_monitor(&manager_proxy).await;
+        if suspend_monitor_result.is_err() {
+          println!("Suspend state not available");
+          return;
+        }
+        let (mut prepare_for_shutdown, mut prepare_for_sleep) = suspend_monitor_result.unwrap();
 
-        let login_session_proxy = SessionProxy::builder(&system_bus)
-          .path(session_obj_path)
-          .unwrap()
-          .build()
-          .await
-          .unwrap();
-        let mut unlock = login_session_proxy.receive_unlock().await.unwrap();
-        let mut locked_hint = login_session_proxy.receive_locked_hint_changed().await;
+        let lock_monitor_result = get_lock_monitor(system_bus, manager_proxy).await;
+        if lock_monitor_result.is_err() {
+          println!("Screen lock state not available");
+          return;
+        }
+        let (mut unlock, mut locked_hint) = lock_monitor_result.unwrap();
 
         let mut handles: Vec<JoinHandle<()>> = vec![];
-        handles.push(tokio::spawn(async move {
-          while let Some(v) = locked_hint.next().await {
-            let status = v.get().await.unwrap();
-            // println!("{}: {}", v.name(), status);
-            if status {
-              let sender = PowerEventChannel::sender();
-              let _ = sender.send(PowerState::ScreenLocked);
-            }
-          }
-        }));
         handles.push(tokio::spawn(async move {
           while let Some(signal) = prepare_for_shutdown.next().await {
             let args = signal.args().unwrap();
@@ -93,8 +85,16 @@ impl PowerMonitor {
           }
         }));
         handles.push(tokio::spawn(async move {
-          while let Some(_) = unlock.next().await {
-            // println!("Signal - unlocked");
+          while let Some(v) = locked_hint.next().await {
+            let status = v.get().await.unwrap();
+            if status {
+              let sender = PowerEventChannel::sender();
+              let _ = sender.send(PowerState::ScreenLocked);
+            }
+          }
+        }));
+        handles.push(tokio::spawn(async move {
+          while unlock.next().await.is_some() {
             let sender = PowerEventChannel::sender();
             let _ = sender.send(PowerState::ScreenUnlocked);
           }
@@ -106,4 +106,34 @@ impl PowerMonitor {
       });
     });
   }
+}
+
+async fn get_suspend_monitor<'a>(
+  manager_proxy: &ManagerProxy<'a>,
+) -> Result<(PrepareForShutdownStream<'a>, PrepareForSleepStream<'a>)> {
+  // not yet tested
+  let prepare_for_shutdown = manager_proxy.receive_prepare_for_shutdown().await.unwrap();
+  // not yet tested
+  let prepare_for_sleep = manager_proxy.receive_prepare_for_sleep().await.unwrap();
+  Ok((prepare_for_shutdown, prepare_for_sleep))
+}
+
+async fn get_lock_monitor(
+  system_bus: zbus::Connection,
+  manager_proxy: ManagerProxy<'_>,
+) -> Result<(UnlockStream<'_>, zbus::PropertyStream<'_, bool>)> {
+  let session_proxy = SessionProxy::new(&system_bus).await.unwrap();
+  let session_id: String = session_proxy.id().await.unwrap();
+  let session_obj_path: OwnedObjectPath = manager_proxy.get_session(&session_id).await.unwrap();
+
+  let login_session_proxy = SessionProxy::builder(&system_bus)
+    .path(session_obj_path)
+    .unwrap()
+    .build()
+    .await
+    .unwrap();
+  let unlock = login_session_proxy.receive_unlock().await.unwrap();
+  let locked_hint = login_session_proxy.receive_locked_hint_changed().await;
+
+  Ok((unlock, locked_hint))
 }
