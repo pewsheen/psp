@@ -32,12 +32,13 @@ impl PowerMonitor {
     }
   }
 
-  pub fn start_listening(&self) {
+  pub fn start_listening(&self) -> Result<(), &'static str> {
     unsafe {
       let _ =
         RegisterPowerSettingNotification(HANDLE(self.hwnd.0), &GUID_POWERSCHEME_PERSONALITY, 0);
       WTSRegisterSessionNotification(self.hwnd, NOTIFY_FOR_THIS_SESSION);
     }
+    Ok(())
   }
 }
 

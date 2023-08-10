@@ -31,10 +31,11 @@ impl PowerMonitor {
     }
   }
 
-  pub fn start_listening(&self) {
+  pub fn start_listening(&self) -> Result<(), &'static str> {
     unsafe {
       let _: id = msg_send![self.monitor, init_monitor];
     }
+    Ok(())
   }
 }
 

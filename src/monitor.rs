@@ -39,8 +39,8 @@ impl PowerMonitor {
     Self { monitor }
   }
 
-  pub fn start_listening(&self) {
-    self.monitor.start_listening();
+  pub fn start_listening(&self) -> Result<(), &'static str> {
+    self.monitor.start_listening()
   }
 
   pub fn event_receiver(&self) -> Receiver<PowerState> {

@@ -1,7 +1,6 @@
 use crate::monitor::{PowerEventChannel, PowerState};
 use std::thread;
 use tokio::task::JoinHandle;
-use tokio_stream::StreamExt;
 use zbus::{dbus_proxy, zvariant::OwnedObjectPath, Result};
 
 #[dbus_proxy(
@@ -45,48 +44,50 @@ impl PowerMonitor {
 }
 
 impl PowerMonitor {
-  pub fn start_listening(&self) {
+  pub fn start_listening(&self) -> std::result::Result<(), &'static str> {
+    if !is_unity() {
+      return Err("Desktop Environment dosen't support Unity");
+    }
+
+    let system_bus_result = zbus::blocking::Connection::system();
+    if system_bus_result.is_err() {
+      return Err("D-Bus not available");
+    }
+
+    let system_bus = system_bus_result.unwrap();
+    let manager_proxy = ManagerProxyBlocking::new(&system_bus).unwrap();
+
+    let suspend_monitor_result = get_suspend_monitor(&manager_proxy);
+    if suspend_monitor_result.is_err() {
+      return Err("Suspend state not available");
+    }
+    let (mut prepare_for_shutdown, mut prepare_for_sleep) = suspend_monitor_result.unwrap();
+
+    let lock_monitor_result = get_lock_monitor(system_bus, manager_proxy);
+    if lock_monitor_result.is_err() {
+      return Err("Screen lock state not available");
+    }
+    let (mut unlock, mut locked_hint) = lock_monitor_result.unwrap();
+
     thread::spawn(move || {
       let runtime = tokio::runtime::Runtime::new().unwrap();
       runtime.block_on(async {
-        let system_bus_result = zbus::Connection::system().await;
-        if system_bus_result.is_err() {
-          println!("D-Bus not available");
-          return;
-        }
-        let system_bus = system_bus_result.unwrap();
-        let manager_proxy = ManagerProxy::new(&system_bus).await.unwrap();
-
-        let suspend_monitor_result = get_suspend_monitor(&manager_proxy).await;
-        if suspend_monitor_result.is_err() {
-          println!("Suspend state not available");
-          return;
-        }
-        let (mut prepare_for_shutdown, mut prepare_for_sleep) = suspend_monitor_result.unwrap();
-
-        let lock_monitor_result = get_lock_monitor(system_bus, manager_proxy).await;
-        if lock_monitor_result.is_err() {
-          println!("Screen lock state not available");
-          return;
-        }
-        let (mut unlock, mut locked_hint) = lock_monitor_result.unwrap();
-
         let mut handles: Vec<JoinHandle<()>> = vec![];
         handles.push(tokio::spawn(async move {
-          while let Some(signal) = prepare_for_shutdown.next().await {
+          while let Some(signal) = prepare_for_shutdown.next() {
             let args = signal.args().unwrap();
             dbg!(args);
           }
         }));
         handles.push(tokio::spawn(async move {
-          while let Some(signal) = prepare_for_sleep.next().await {
+          while let Some(signal) = prepare_for_sleep.next() {
             let args = signal.args().unwrap();
             dbg!(args);
           }
         }));
         handles.push(tokio::spawn(async move {
-          while let Some(v) = locked_hint.next().await {
-            let status = v.get().await.unwrap();
+          while let Some(v) = locked_hint.next() {
+            let status = v.get().unwrap();
             if status {
               let sender = PowerEventChannel::sender();
               let _ = sender.send(PowerState::ScreenLocked);
@@ -94,7 +95,7 @@ impl PowerMonitor {
           }
         }));
         handles.push(tokio::spawn(async move {
-          while unlock.next().await.is_some() {
+          while unlock.next().is_some() {
             let sender = PowerEventChannel::sender();
             let _ = sender.send(PowerState::ScreenUnlocked);
           }
@@ -105,35 +106,48 @@ impl PowerMonitor {
         }
       });
     });
+
+    Ok(())
   }
 }
 
-async fn get_suspend_monitor<'a>(
-  manager_proxy: &ManagerProxy<'a>,
-) -> Result<(PrepareForShutdownStream<'a>, PrepareForSleepStream<'a>)> {
+fn is_unity() -> bool {
+  std::env::var("XDG_CURRENT_DESKTOP")
+    .map(|d| {
+      let d = d.to_lowercase();
+      d.contains("unity") || d.contains("gnome")
+    })
+    .unwrap_or(false)
+}
+
+fn get_suspend_monitor<'a>(
+  manager_proxy: &ManagerProxyBlocking<'a>,
+) -> Result<(PrepareForShutdownIterator<'a>, PrepareForSleepIterator<'a>)> {
   // not yet tested
-  let prepare_for_shutdown = manager_proxy.receive_prepare_for_shutdown().await.unwrap();
+  let prepare_for_shutdown = manager_proxy.receive_prepare_for_shutdown().unwrap();
   // not yet tested
-  let prepare_for_sleep = manager_proxy.receive_prepare_for_sleep().await.unwrap();
+  let prepare_for_sleep = manager_proxy.receive_prepare_for_sleep().unwrap();
   Ok((prepare_for_shutdown, prepare_for_sleep))
 }
 
-async fn get_lock_monitor(
-  system_bus: zbus::Connection,
-  manager_proxy: ManagerProxy<'_>,
-) -> Result<(UnlockStream<'_>, zbus::PropertyStream<'_, bool>)> {
-  let session_proxy = SessionProxy::new(&system_bus).await.unwrap();
-  let session_id: String = session_proxy.id().await.unwrap();
-  let session_obj_path: OwnedObjectPath = manager_proxy.get_session(&session_id).await.unwrap();
+fn get_lock_monitor(
+  system_bus: zbus::blocking::Connection,
+  manager_proxy: ManagerProxyBlocking<'_>,
+) -> Result<(
+  UnlockIterator<'_>,
+  zbus::blocking::PropertyIterator<'_, bool>,
+)> {
+  let session_proxy = SessionProxyBlocking::new(&system_bus).unwrap();
+  let session_id: String = session_proxy.id().unwrap();
+  let session_obj_path: OwnedObjectPath = manager_proxy.get_session(&session_id).unwrap();
 
-  let login_session_proxy = SessionProxy::builder(&system_bus)
+  let login_session_proxy = SessionProxyBlocking::builder(&system_bus)
     .path(session_obj_path)
     .unwrap()
     .build()
-    .await
     .unwrap();
-  let unlock = login_session_proxy.receive_unlock().await.unwrap();
-  let locked_hint = login_session_proxy.receive_locked_hint_changed().await;
+  let unlock = login_session_proxy.receive_unlock().unwrap();
+  let locked_hint = login_session_proxy.receive_locked_hint_changed();
 
   Ok((unlock, locked_hint))
 }
