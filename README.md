@@ -37,7 +37,10 @@ let power_monitor = PowerMonitor::new();
 let power_event_channel = power_monitor.event_receiver();
 
 // start listening power state change events
-power_monitor.start_listening();
+if power_monitor.start_listening().is_err() {
+  println!("Failed to start listening to power events");
+  return;
+}
 
 if let Ok(event) = power_event_channel.try_recv() {
   println!("{event:?}");
