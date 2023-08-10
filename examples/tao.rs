@@ -15,8 +15,10 @@ fn main() {
 
   let power_monitor = PowerMonitor::new();
   let power_event_channel = power_monitor.event_receiver();
-
-  power_monitor.start_listening();
+  if power_monitor.start_listening().is_err() {
+    println!("Failed to start listening to power events");
+    return;
+  }
 
   event_loop.run(move |event, _, control_flow| {
     *control_flow = ControlFlow::Wait;
