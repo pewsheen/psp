@@ -28,3 +28,8 @@ Turn your computer into sleep mode
 ```
 cargo run --example tao
 ```
+
+### With [winit](https://github.com/rust-windowing/winit)
+```
+cargo run --example winit
+```
