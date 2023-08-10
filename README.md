@@ -28,21 +28,3 @@ Turn your computer into sleep mode
 ```
 cargo run --example tao
 ```
-
-### Minimal Example
-```rs
-let power_monitor = PowerMonitor::new();
-
-// get the event channel receiver
-let power_event_channel = power_monitor.event_receiver();
-
-// start listening power state change events
-if let Err(msg) = power_monitor.start_listening() {
-  println!("Failed to start listening to power events: {}", msg);
-  return;
-}
-
-if let Ok(event) = power_event_channel.try_recv() {
-  println!("{event:?}");
-}
-```
