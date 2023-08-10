@@ -45,10 +45,6 @@ impl PowerMonitor {
 
 impl PowerMonitor {
   pub fn start_listening(&self) -> std::result::Result<(), &'static str> {
-    if !is_unity() {
-      return Err("Desktop Environment dosen't support Unity");
-    }
-
     let system_bus_result = zbus::blocking::Connection::system();
     if system_bus_result.is_err() {
       return Err("D-Bus not available");
@@ -109,15 +105,6 @@ impl PowerMonitor {
 
     Ok(())
   }
-}
-
-fn is_unity() -> bool {
-  std::env::var("XDG_CURRENT_DESKTOP")
-    .map(|d| {
-      let d = d.to_lowercase();
-      d.contains("unity") || d.contains("gnome")
-    })
-    .unwrap_or(false)
 }
 
 fn get_suspend_monitor<'a>(
