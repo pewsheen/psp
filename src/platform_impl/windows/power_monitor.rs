@@ -32,11 +32,16 @@ impl PowerMonitor {
     }
   }
 
-  pub fn start_listening(&self) -> Result<(), &'static str> {
+  pub fn start_listening(&self) -> std::result::Result<(), &'static str> {
     unsafe {
-      let _ =
-        RegisterPowerSettingNotification(HANDLE(self.hwnd.0), &GUID_POWERSCHEME_PERSONALITY, 0);
-      WTSRegisterSessionNotification(self.hwnd, NOTIFY_FOR_THIS_SESSION);
+      if RegisterPowerSettingNotification(HANDLE(self.hwnd.0), &GUID_POWERSCHEME_PERSONALITY, 0)
+        .is_err()
+      {
+        return Err("Failed to register power setting notification");
+      };
+      if !WTSRegisterSessionNotification(self.hwnd, NOTIFY_FOR_THIS_SESSION).as_bool() {
+        return Err("Failed to register session notification");
+      };
     }
     Ok(())
   }

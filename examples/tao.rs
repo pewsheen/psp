@@ -15,8 +15,8 @@ fn main() {
 
   let power_monitor = PowerMonitor::new();
   let power_event_channel = power_monitor.event_receiver();
-  if power_monitor.start_listening().is_err() {
-    println!("Failed to start listening to power events");
+  if let Err(msg) = power_monitor.start_listening() {
+    println!("Failed to start listening to power events: {}", msg);
     return;
   }
 
